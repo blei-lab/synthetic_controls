@@ -1,10 +1,8 @@
 import abc
 import cvxpy as cp
 import numpy as np
-import pandas as pd
 
-from synthetic_controls.observed_causes_data import ObservedCausesData
-from synthetic_controls.utils import Distribution
+from synthetic_controls.observed_causes_data import ObservedCausesData, Distribution
 
 
 class BaseEstimator(abc.ABC):
@@ -36,6 +34,7 @@ class BaseEstimator(abc.ABC):
     @property
     def treatment_start_time(self):
         return self._treatment_start_time
+
     @treatment_start_time.setter
     def treatment_start_time(self, value):
         if value is None:
@@ -67,7 +66,11 @@ class BaseEstimator(abc.ABC):
         donor_names : list of str, optional
             Names of the donor units in the panel data.
             If `None`, it is set to all columns of `self.dataframe` except `target_name`.
-
+        treatment_start_time : int, optional
+            Time at which the treatment starts, such that `X[:treatment_start_time]`
+            is the untreated data and `X[treatment_start_time:]` is the treated data.
+        verbose : bool, optional
+            Set the verbosity level of the optimization solver.
 
         Returns
         -------
@@ -151,7 +154,8 @@ class BaseEstimator(abc.ABC):
         Parameters
         ----------
         top_k : int, optional
-            Number of top donors to show in the summary. If None, all donors meeting the threshold are shown.
+            Number of top donors to show in the summary. If None, all the donors
+            meeting the threshold are shown.
         threshold : float, optional
             Threshold for the weights of the donors to be shown in the summary.
 
@@ -170,34 +174,6 @@ class BaseEstimator(abc.ABC):
                 )[:top_k],
             )
         )
-
-    def estimate_causal_effect(self, X=None, y=None):
-        """Estimate the causal effect of the treatment on the target unit.
-
-        Parameters
-        ----------
-        X : array-like, shape (time, donors) or None
-            If array-like, it is the panel data of the donor units.
-            If None, it is the same as the panel data used to fit the estimator.
-        y : array-like, shape (time, ) or str or None
-            If array-like, it is the panel data of the target unit.
-            If str or None, it is the same as the panel data used to fit the estimator.
-
-        Returns
-        -------
-        causal_effect : float
-            The estimated causal effect of the treatment.
-        """
-        if isinstance(y, str) and self._target_name != y:
-            raise ValueError(
-                "If `y` is a str, it must be the same as the one"
-                " used to fit the estimator."
-            )
-        if X is None:
-            X = self.donors_outcomes
-        if y is None or isinstance(y, str):
-            y = self.target_outcomes
-        return y - self.predict(X)
 
     def _get_constraints_weights_simplex(self):
         return [cp.sum(self._weights) == 1, self._weights >= 0]
@@ -311,7 +287,8 @@ class StandardEstimator(BaseEstimator):
 class MBondEstimator(BaseEstimator, WassersteinMixin):
     """M-bond estimator for synthetic control.
 
-    Minimize the Wasserstein distance between the distributions of causes of the donors and the target.
+    Minimize the Wasserstein distance between the distributions of causes of
+    the donors and the target.
     """
 
     def __init__(self, dataframe, observed_causes, **kwargs):
@@ -323,7 +300,8 @@ class MBondEstimator(BaseEstimator, WassersteinMixin):
         WassersteinMixin.__init__(self, distributions_of_causes)
 
     def _get_objective_function(self):
-        """The Wasserstein distance between the distributions of causes of the donors and the target."""
+        """The Wasserstein distance between the distributions of causes
+        of the donors and the target."""
         return self._get_wasserstein_l1()
 
     def _get_constraints(self):
@@ -356,7 +334,8 @@ class JamesBondEstimator(BaseEstimator, WassersteinMixin):
         )
 
     def _get_objective_function(self):
-        """The Wasserstein distance between the distributions of causes of the donors and the target."""
+        """The Wasserstein distance between the distributions of causes of the
+        donors and the target."""
         wasserstein_l1 = self._get_wasserstein_l1()
         error = self._synthetic_outcomes - self.target_outcomes
         error = error[: self._treatment_start_time_index]

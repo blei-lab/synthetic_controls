@@ -1,13 +1,18 @@
-import numpy as np
-import pandas as pd
-import seaborn as sns
 import matplotlib.pyplot as plt
 
-from synthetic_controls._estimator import BaseEstimator
+from synthetic_controls.estimators import BaseEstimator
 
 
 def plot_outcomes(
-    estimator: BaseEstimator, observed_outcomes=True, synthetic_outcomes=True, ax=None
+    estimator: BaseEstimator,
+    observed_outcomes=True,
+    synthetic_outcomes=True,
+    ax=None,
+    color_outcome="C0",
+    color_synthetic="C1",
+    legend=True,
+    show_t0=True,
+    synthetic_name=None,
 ):
     """Plot the outcomes of the estimator.
 
@@ -21,6 +26,16 @@ def plot_outcomes(
         Whether to plot the synthetic outcomes.
     ax : matplotlib.pyplot.Axes, optional
         The axes to plot on. If None, a new figure and axes are created.
+    color_outcome : str (default: "C0")
+        The color of the observed outcomes line.
+    color_synthetic : str (default: "C1")
+        The color of the synthetic outcomes line.
+    legend : bool (default: True)
+        Whether to show the legend.
+    show_t0 : bool (default: True)
+        Whether to show a vertical line at the treatment start time.
+    synthetic_name : str (optional)
+        The name of the synthetic outcomes. If None, `"Synthetic" + target name` is used.
 
     Returns
     -------
@@ -36,15 +51,26 @@ def plot_outcomes(
     x_axis = estimator.dataframe.index
     if observed_outcomes:
         observed_outcomes = estimator.target_outcomes
-        ax.plot(x_axis, observed_outcomes, label="Observed " + estimator.target_name)
+        ax.plot(
+            x_axis,
+            observed_outcomes,
+            label="Observed " + estimator.target_name,
+            color=color_outcome,
+        )
 
     if synthetic_outcomes:
         synthetic_outcomes = estimator.synthetic_outcomes
+        label = (
+            synthetic_name
+            if synthetic_name is not None
+            else "Synthetic " + estimator.target_name
+        )
         l = ax.plot(
             x_axis,
             synthetic_outcomes,
-            label="Synthetic " + estimator.target_name,
+            label=label,
             linestyle="--",
+            color=color_synthetic,
         )
         if hasattr(estimator, "get_bound"):
             bound = estimator.get_bound()
@@ -56,13 +82,17 @@ def plot_outcomes(
                 color=l[0].get_color(),
             )
 
-    ax.axvline(
-        estimator.treatment_start_time, color="black", linestyle="--", label="T0"
-    )
+    if show_t0:
+        ax.axvline(
+            estimator.treatment_start_time,
+            color="black",
+            linestyle="--",
+        )
 
     ax.set_xlabel(estimator.dataframe.index.name)
     ax.set_ylabel("Outcome")
-    ax.legend()
+    if legend:
+        ax.legend()
 
     return ax
 
@@ -82,16 +112,29 @@ def compare_estimators(estimators, ax=None):
     ax : matplotlib.pyplot.Axes
         The axes the outcomes were plotted on.
     """
-    raise NotImplementedError("This function is not implemented yet.")
+    if len(estimators) == 0:
+        raise ValueError("No estimators to plot.")
     if ax is None:
         fig, ax = plt.subplots()
 
-    for estimator in estimators:
+    plot_outcomes(
+        estimators[0],
+        ax=ax,
+        observed_outcomes=True,
+        synthetic_outcomes=True,
+        legend=False,
+        synthetic_name=estimators[0].__class__.__name__,
+    )
+    for i, estimator in enumerate(estimators[1:]):
         plot_outcomes(
             estimator,
-            observed_outcomes=observed_outcomes,
-            synthetic_outcomes=synthetic_outcomes,
             ax=ax,
+            observed_outcomes=False,
+            synthetic_outcomes=True,
+            color_synthetic=f"C{i+2}",
+            legend=False,
+            synthetic_name=estimator.__class__.__name__,
         )
 
+    ax.legend()
     return ax
